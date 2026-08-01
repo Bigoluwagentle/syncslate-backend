@@ -12,6 +12,13 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+const authRoutes = require('./routes/authRoutes');
+const boardRoutes = require('./routes/boardRoutes');
+
+
+app.use('/auth', authRoutes);
+app.use('/boards', boardRoutes);
+
 // Simple route just to prove the server is alive and reachable.
 app.get('/', (req, res) => {
   res.json({ message: 'SyncSlate backend is running' });
