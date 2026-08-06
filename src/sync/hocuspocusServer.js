@@ -32,6 +32,34 @@ const hocuspocus = new Hocuspocus({
     return data.document;
   },
 
+  onAuthenticate: async (data) => {
+    const { token, documentName } = data;
+
+    if (!token) {
+      throw new Error('No token provided');
+    }
+
+    let payload;
+    try {
+      payload = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (err) {
+      throw new Error('Invalid or expired token');
+    }
+
+    // documentName IS the board's MongoDB _id — that's the convention
+    // we're establishing: one Yjs document per board, named after it.
+    const board = await Board.findOne({ _id: documentName, owner: payload.userId });
+
+    if (!board) {
+      throw new Error('Board not found or access denied');
+    }
+
+    // Whatever we return here gets attached to this connection as
+    // `data.context` in every other hook — useful later (e.g. showing
+    // WHO is connected, for cursor presence).
+    return { userId: payload.userId };
+  },
+
   // Fires after edits settle, per the debounce settings above.
   // Encodes the ENTIRE current document state and upserts it —
   // Yjs updates are designed to be re-encoded as one snapshot like this.
