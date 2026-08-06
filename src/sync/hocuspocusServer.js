@@ -1,6 +1,8 @@
 const { Hocuspocus } = require('@hocuspocus/server');
 const Y = require('yjs');
 const DocState = require('../models/DocState');
+const jwt = require('jsonwebtoken');
+const Board = require('../models/Board');
 
 const hocuspocus = new Hocuspocus({
   // Don't save to MongoDB on every single keystroke — batch changes.
