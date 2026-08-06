@@ -65,7 +65,18 @@ httpServer.on('upgrade', (request, socket, head) => {
   // Anything else (there's nothing else yet) would fall through here.
   if (pathname === '/sync') {
     wss.handleUpgrade(request, socket, head, (ws) => {
-      hocuspocus.handleConnection(ws, request);
+      // handleConnection() no longer wires itself up automatically —
+      // it hands back a connection object, and we're responsible for
+      // forwarding this socket's raw messages and close event to it.
+      const connection = hocuspocus.handleConnection(ws, request);
+
+      ws.on('message', (data) => {
+        connection.handleMessage(data);
+      });
+
+      ws.on('close', (code, reason) => {
+        connection.handleClose({ code, reason: reason.toString() });
+      });
     });
   } else {
     socket.destroy();

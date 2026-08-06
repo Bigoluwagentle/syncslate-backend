@@ -1,14 +1,46 @@
 const { Hocuspocus } = require('@hocuspocus/server');
+const Y = require('yjs');
+const DocState = require('../models/DocState');
 
-// This is the CRDT sync server. Right now it just holds documents in
-// memory — anyone connected to the same "document name" sees the same
-// shared state. MongoDB persistence gets added in the next step.
 const hocuspocus = new Hocuspocus({
+  // Don't save to MongoDB on every single keystroke — batch changes.
+  // Wait 2s after the last edit before saving, but never wait longer
+  // than 10s even if edits keep coming in constantly.
+  debounce: 2000,
+  maxDebounce: 10000,
+
   onConnect: async (data) => {
     console.log(`Client connected to document: ${data.documentName}`);
   },
   onDisconnect: async (data) => {
     console.log(`Client disconnected from document: ${data.documentName}`);
+  },
+
+  // Fires once, the moment the FIRST client connects to a document
+  // that isn't already sitting in memory. We check MongoDB for saved
+  // state and, if found, apply it to the fresh in-memory Y.Doc.
+  onLoadDocument: async (data) => {
+    const saved = await DocState.findOne({ documentName: data.documentName });
+    if (saved) {
+      Y.applyUpdate(data.document, saved.state);
+      console.log(`Loaded saved state for document: ${data.documentName}`);
+    } else {
+      console.log(`No saved state found for document: ${data.documentName} (new document)`);
+    }
+    return data.document;
+  },
+
+  // Fires after edits settle, per the debounce settings above.
+  // Encodes the ENTIRE current document state and upserts it —
+  // Yjs updates are designed to be re-encoded as one snapshot like this.
+  onStoreDocument: async (data) => {
+    const state = Buffer.from(Y.encodeStateAsUpdate(data.document));
+    await DocState.updateOne(
+      { documentName: data.documentName },
+      { state },
+      { upsert: true }
+    );
+    console.log(`Saved state for document: ${data.documentName}`);
   },
 });
 
